@@ -66,18 +66,21 @@ net.cell_response.plot_spikes_hist(ax=axes[1],
 plot_dipole(dpls_beta, ax=axes[0], layer='agg', show=False)
 
 trial_idx = 0
-decim = 2
+decim = 8
 sfreq = 1000. / params['dt'] / decim
-freqs = np.arange(1., 60., 2.)
+freqs = np.arange(5., 60., 2.)
 data = dpls_beta[trial_idx].data['agg'][::decim]
 times = dpls_beta[trial_idx].times[::decim]
+
+data = np.r_[data[::-1], data[1:], data[-2::-1]]
 data = data[None, None, :]
-n_cycles = freqs / 20
+n_cycles = freqs / 2
 
 # MNE expects an array of shape (n_trials, n_channels, n_times)
 
 power = tfr_array_morlet(data, sfreq=sfreq, freqs=freqs,
                          n_cycles=n_cycles, output='power')
+power = power[:, :, :, times.shape[0]:2 * times.shape[0]]
 im = axes[2].pcolormesh(times, freqs, power[0, 0, ...], cmap='inferno',
                         shading='auto')
 # fig.subplots_adjust(right=0.8)
@@ -115,13 +118,15 @@ with MPIBackend(n_procs=4):
 
 # Calculate TFR
 trial_idx = 0
-decim = 2
+decim = 8
 sfreq = 1000. / params['dt'] / decim
-freqs = np.arange(1., 40., 1.)
+freqs = np.arange(3., 40., 1.)
 data = dpls_eve[trial_idx].data['agg'][::decim]
 times = dpls_eve[trial_idx].times[::decim]
+
+data = np.r_[data[::-1], data[1:], data[-2::-1]]
 data = data[None, None, :]
-n_cycles = freqs / 20
+n_cycles = freqs / 2
 
 # MNE expects an array of shape (n_trials, n_channels, n_times)
 power = tfr_array_morlet(data, sfreq=sfreq, freqs=freqs,
@@ -135,6 +140,7 @@ eve.cell_response.plot_spikes_hist(ax=axes[1], spike_types=['prox_event'],
                                    show=False)
 plot_dipole(dpls_eve, ax=axes[2], layer='agg', show=False)
 
+power = power[:, :, :, times.shape[0]:2 * times.shape[0]]
 im = axes[3].pcolormesh(times, freqs, power[0, 0, ...], cmap='inferno',
                         shading='auto')
 axes[3].set_xlabel('Time (ms)')
