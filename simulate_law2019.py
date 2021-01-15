@@ -1,10 +1,17 @@
 """
-=================================
-Simulate dipole for evoked inputs
-=================================
+===================================
+Simulate somatosensory beta rhythms
+===================================
 
-This example demonstrates how to simulate a dipole for evoked-like
-waveforms using HNN-core.
+This example reproduces qualitatively the continous 10/20 Hz somatomotor beta,
+as published in Figure 5B of [1], and a single beta event, as in Figure 4B of
+[2].
+
+[1] Sherman, M. A. et al. Neural mechanisms of transient neocortical beta
+rhythms: Converging evidence from humans, computational modeling, monkeys, and
+mice. PNAS 113, E4885-94 (2016).
+[2] Law, R. G. et al. A supragranular nexus for the effects of neocortical beta
+events on human tactile perception. Biorxiv 750992 (2019) doi:10.1101/750992.
 
 """
 
@@ -27,9 +34,10 @@ hnn_core_root = op.dirname(hnn_core.__file__)
 
 ###############################################################################
 # Reproduce Sherman 2016, Fig 5
+###############################################################################
 params_fname = op.join(hnn_core_root, 'param', 'default.json')
 params = read_params(params_fname)
-params['tstop'] = 500.0
+params['tstop'] = 1000.0
 
 net = Network(params)
 
@@ -46,7 +54,7 @@ net.add_bursty_drive(
     synaptic_delays=syn_delays_p, seedcore=3)
 
 location = 'distal'
-burst_std = 15  # NB
+burst_std = 15  # NB Sherman [1] and Law [2] use different values here
 weights_ampa_d = {'L2_basket': 3.2e-4, 'L2_pyramidal': 8.e-5,
                   'L5_pyramidal': 4e-5}
 syn_delays_d = {'L2_basket': 0.5, 'L2_pyramidal': 0.5,
@@ -64,6 +72,8 @@ fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 8))
 net.cell_response.plot_spikes_hist(ax=axes[1],
                                    spike_types=['beta_prox', 'beta_dist'])
 plot_dipole(dpls_beta, ax=axes[0], layer='agg', show=False)
+
+# XXX hacky, should be wrapped into a viz-funtion
 
 trial_idx = 0
 decim = 8
@@ -93,10 +103,30 @@ fig.canvas.draw()
 fig.canvas.flush_events()
 plt.ioff()
 plt.show()
+
 ###############################################################################
 # Reproduce Law 2019, Figure 4
-params_fname = op.join('law2019-cjb.param')
-params = read_params(params_fname)
+###############################################################################
+# Values to be changed relative to default parameters are given in
+# Supplemental Table 1 [2]
+
+# Cell parameters
+params['L2Pyr_gabab_tau1'] = 45.
+params['L2Pyr_gabab_tau2'] = 200.0
+params['L5Pyr_gabab_tau1'] = 45.
+params['L5Pyr_gabab_tau2'] = 200.0
+params['L5Pyr_soma_gbar_ca'] = 0.0
+# NB not all changes implemented in [2] are currently available in hnn-core
+# XXX raise issue at hnn-core to implement
+params['L5Pyr_dend_gbar_ca'] = 60.0
+
+# Network connectivity
+# NB L2b -> L5p connections are given separately for GABAA and GABAB in [2]
+# XXX raise issue at hnn-core to implement
+params['gbar_L2Basket_L5Pyr'] = 0.0002
+params['gbar_L5Pyr_L5Pyr_nmda'] = 0.0004
+params['gbar_L5Basket_L5Pyr_gabaa'] = 0.02
+params['gbar_L5Basket_L5Pyr_gabab'] = 0.005
 
 params['tstop'] = 300
 eve = Network(params)
@@ -107,7 +137,7 @@ eve.add_bursty_drive(
     numspikes=2, spike_isi=10, repeats=10, location='proximal',
     weights_ampa=weights_ampa_p, synaptic_delays=syn_delays_p)
 
-burst_std = 10  # NB
+burst_std = 10  # NB Sherman [1] and Law [2] use different values here
 eve.add_bursty_drive(
     'dist_event', tstart=150., tstop=200., burst_rate=1, burst_std=burst_std,
     numspikes=2, spike_isi=10, repeats=10, location='distal',
