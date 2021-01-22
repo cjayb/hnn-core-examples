@@ -1,18 +1,14 @@
 """
-===================================
-Simulate somatosensory beta rhythms
-===================================
+=================================
+Simulate somatosensory mu rhythms
+=================================
 
-This example reproduces qualitatively the continous 10/20 Hz somatomotor beta,
-as published in Figure 5B of [1], and a single beta event, as in Figure 4B of
+This example reproduces qualitatively the continous 10/20 Hz somatomotor mu,
+as published in Figure 5B of [1], and a single mu event, as in Figure 4B of
 [2].
 
-[1] Sherman, M. A. et al. Neural mechanisms of transient neocortical beta
-rhythms: Converging evidence from humans, computational modeling, monkeys, and
-mice. PNAS 113, E4885-94 (2016).
-[2] Law, R. G. et al. A supragranular nexus for the effects of neocortical beta
-events on human tactile perception. Biorxiv 750992 (2019) doi:10.1101/750992.
-
+NB! At present, ``hnn_core`` cannot exactly reproduce [2], as changes were made
+to the network that cannot be implemented using the current API.
 """
 
 # Authors: Christopher Bailey <cjb@cfin.au.dk>
@@ -24,9 +20,9 @@ import os.path as op
 
 import hnn_core
 from hnn_core import simulate_dipole, read_params, Network
-from hnn_core.viz import plot_dipole
+from hnn_core.viz import plot_dipole, plot_tfr_morlet
 from hnn_core import MPIBackend
-from mne.time_frequency import tfr_array_morlet
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -67,43 +63,20 @@ net.add_bursty_drive(
 with MPIBackend(n_procs=4):
     dpls_beta = simulate_dipole(net, n_trials=1)
 
-plt.ion()
-fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 8))
-net.cell_response.plot_spikes_hist(ax=axes[1],
-                                   spike_types=['beta_prox', 'beta_dist'])
-plot_dipole(dpls_beta, ax=axes[0], layer='agg', show=False)
-
-# XXX hacky, should be wrapped into a viz-funtion
-
 trial_idx = 0
-decim = 8
-sfreq = 1000. / params['dt'] / decim
-freqs = np.arange(5., 60., 2.)
-data = dpls_beta[trial_idx].data['agg'][::decim]
-times = dpls_beta[trial_idx].times[::decim]
+decim = [10, 10]  # decimate by a factor of 100
+fig, axes = plt.subplots(4, 1, sharex=True, figsize=(6, 8),
+                         gridspec_kw={'height_ratios': [1, 1, 2, 4]})
+net.cell_response.plot_spikes_hist(ax=axes[0], spike_types=['beta_dist'],
+                                   show=False)
+net.cell_response.plot_spikes_hist(ax=axes[1], spike_types=['beta_prox'],
+                                   show=False)
+plot_dipole(dpls_beta[trial_idx], ax=axes[2], decim=decim, show=False)
 
-data = np.r_[data[::-1], data[1:], data[-2::-1]]
-data = data[None, None, :]
-n_cycles = freqs / 2
-
-# MNE expects an array of shape (n_trials, n_channels, n_times)
-
-power = tfr_array_morlet(data, sfreq=sfreq, freqs=freqs,
-                         n_cycles=n_cycles, output='power')
-power = power[:, :, :, times.shape[0]:2 * times.shape[0]]
-im = axes[2].pcolormesh(times, freqs, power[0, 0, ...], cmap='inferno',
-                        shading='auto')
-# fig.subplots_adjust(right=0.8)
-# cbar_ax = fig.add_axes([0.85, 0.1, 0.03, 0.25])
-# fig.colorbar(im, cax=cbar_ax)
-axes[2].set_xlabel('Time (ms)')
-axes[2].set_ylabel('Frequency (Hz)')
-
-fig.canvas.draw()
-fig.canvas.flush_events()
-plt.ioff()
-plt.show()
-
+freqs = np.arange(5., 40., 1.)
+n_cycles = 7
+plot_tfr_morlet(dpls_beta[trial_idx], freqs=freqs, n_cycles=n_cycles,
+                decim=decim, ax=axes[3])
 ###############################################################################
 # Reproduce Law 2019, Figure 4
 ###############################################################################
@@ -146,35 +119,26 @@ eve.add_bursty_drive(
 with MPIBackend(n_procs=4):
     dpls_eve = simulate_dipole(eve, n_trials=1)
 
-# Calculate TFR
+# plot spikes, dipole waveform, and time-frequency representation
 trial_idx = 0
-decim = 8
-sfreq = 1000. / params['dt'] / decim
-freqs = np.arange(3., 40., 1.)
-data = dpls_eve[trial_idx].data['agg'][::decim]
-times = dpls_eve[trial_idx].times[::decim]
-
-data = np.r_[data[::-1], data[1:], data[-2::-1]]
-data = data[None, None, :]
-n_cycles = freqs / 2
-
-# MNE expects an array of shape (n_trials, n_channels, n_times)
-power = tfr_array_morlet(data, sfreq=sfreq, freqs=freqs,
-                         n_cycles=n_cycles, output='power')
-
-plt.ion()
-fig, axes = plt.subplots(4, 1, sharex=True, figsize=(6, 8))
+decim = [3, 10]  # decimate by a factor of 30
+fig, axes = plt.subplots(4, 1, sharex=True, figsize=(6, 8),
+                         gridspec_kw={'height_ratios': [1, 1, 2, 4]})
 eve.cell_response.plot_spikes_hist(ax=axes[0], spike_types=['dist_event'],
                                    show=False)
 eve.cell_response.plot_spikes_hist(ax=axes[1], spike_types=['prox_event'],
                                    show=False)
-plot_dipole(dpls_eve, ax=axes[2], layer='agg', show=False)
+plot_dipole(dpls_eve[trial_idx], ax=axes[2], decim=decim, show=False)
 
-power = power[:, :, :, times.shape[0]:2 * times.shape[0]]
-im = axes[3].pcolormesh(times, freqs, power[0, 0, ...], cmap='inferno',
-                        shading='auto')
-axes[3].set_xlabel('Time (ms)')
-axes[3].set_ylabel('Frequency (Hz)')
+freqs = np.arange(5., 40., 1.)
+n_cycles = 2  # short simulation window, only few cycles fit at lowest freq's
+plot_tfr_morlet(dpls_eve[trial_idx], freqs=freqs, n_cycles=n_cycles,
+                decim=decim, ax=axes[3])
 
-plt.ioff()
-plt.show()
+# References
+# ----------
+# [1] Sherman, M. A. et al. Neural mechanisms of transient neocortical beta
+# rhythms: Converging evidence from humans, computational modeling, monkeys, and
+# mice. PNAS 113, E4885-94 (2016).
+# [2] Law, R. G. et al. A supragranular nexus for the effects of neocortical beta
+# events on human tactile perception. Biorxiv 750992 (2019) doi:10.1101/750992.
