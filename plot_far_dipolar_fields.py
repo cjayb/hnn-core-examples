@@ -32,11 +32,11 @@ method = 'psa'
 
 load_custom_mechanisms()
 
-params = dict(tstop=300, dt=0.025, burnin=200)
+tstop, dt, burnin = 300, 0.025, 200
 
 h.load_file("stdrun.hoc")
-h.tstop = params['tstop'] + params['burnin']
-h.dt = params['dt']
+h.tstop = tstop + burnin
+h.dt = dt
 h.celsius = 37
 
 _PC = h.ParallelContext(1)
@@ -59,20 +59,20 @@ step = 1e3
 grid_lfp = grid_array(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
                       step=step, posz=20)
 
-# %%
+# %% Neuron stuff
 syn_deep = l5p.synapses['basal_1_nmda']
 syn_superf = l5p.synapses['apical_2_nmda']
 
 stim_deep = h.NetStim()  # Make a new stimulator
 stim_deep.number = 1
-stim_deep.start = 49 + params['burnin']  # ms
+stim_deep.start = 49 + burnin  # ms
 ncstim_deep = h.NetCon(stim_deep, syn_deep)
 ncstim_deep.delay = 10
 ncstim_deep.weight[0] = 0.02  # NetCon weight is a vector.
 
 stim_superf = h.NetStim()  # Make a new stimulator
 stim_superf.number = 2
-stim_superf.start = 199 + params['burnin']  # ms
+stim_superf.start = 199 + burnin  # ms
 ncstim_superf = h.NetCon(stim_superf, syn_superf)
 ncstim_superf.delay = 1
 ncstim_superf.weight[0] = 0.02  # NetCon weight is a vector.
@@ -87,7 +87,7 @@ print(f'Running simulation with {len(grid_lfp) * len(grid_lfp[0])} electrodes')
 # h.run()
 _PC.psolve(h.tstop)
 
-# %%
+# %% Plot
 times_lfp = np.array(grid_lfp[0][0].lfp_t.to_python())
 X_p = np.arange(xmin, xmax, step) / 1000
 Y_p = np.arange(ymin, ymax, step) / 1000
@@ -112,6 +112,8 @@ axs[0].set_ylabel('Distance from soma in Y (mm)')
 axs[1].set_yticklabels(())
 axs[0].set_title('Deep synapse active')
 axs[1].set_title('Superficial synapse active')
+
+# %% Colorbar
 axins = inset_axes(axs[1],
                    width="5%",  # width = 5% of parent_bbox width
                    height="80%",  # height : 50%
@@ -125,5 +127,3 @@ cbh.ax.yaxis.set_ticks_position('left')
 cbh.ax.set_ylabel('Potential (nV)')
 
 plt.show()
-
-# %%
