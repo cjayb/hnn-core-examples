@@ -11,28 +11,18 @@ from hnn_core.lfp import _LFPElectrode
 from hnn_core.cells_default import pyramidal
 
 
-def grid_array(xmin, xmax, ymin, ymax, step, posz=10):
-    el_array = list()
-    for posx in np.arange(xmin, xmax, step):
-        el_array_row = list()
-        for posy in np.arange(ymin, ymax, step):
-            el_array_row.append(_LFPElectrode((posx, posy, posz), sigma=sigma,
-                                              pc=None, cvode=_CVODE,
-                                              method=method))
-        el_array.append(el_array_row)
-    return el_array
-
-
-def simulation_time():
-    print('Simulation time: {0} ms...'.format(round(h.t, 2)))
-
-
 sigma = 0.3  # S / m
 method = 'psa'
 
-load_custom_mechanisms()
+# LFP Grid
+xmin, xmax = -1e4, 1e4
+ymin, ymax = -1e4, 1e4
+step = 1e3
+posz = 20.
 
 tstop, dt, burnin = 300, 0.025, 200
+
+load_custom_mechanisms()
 
 h.load_file("stdrun.hoc")
 h.tstop = tstop + burnin
@@ -46,20 +36,22 @@ _CVODE = h.CVode()
 _CVODE.active(0)
 _CVODE.use_fast_imem(1)
 
-# %%
+# %% Create Cell and LFP grid
 silence_hh = {'L5Pyr_soma_gkbar_hh2': 0.0,
               'L5Pyr_soma_gnabar_hh2': 0.0,
               'L5Pyr_dend_gkbar_hh2': 0.0,
               'L5Pyr_dend_gnabar_hh2': 0.0}
 l5p = pyramidal(pos=(0, 0, 0), cell_name='L5Pyr', override_params=silence_hh)
 
-xmin, xmax = -1e4, 1e4
-ymin, ymax = -1e4, 1e4
-step = 1e3
-grid_lfp = grid_array(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
-                      step=step, posz=20)
+grid_lfp = list()
+for posx in np.arange(xmin, xmax, step):
+    row_lfp = list()
+    for posy in np.arange(ymin, ymax, step):
+        row_lfp.append(_LFPElectrode((posx, posy, posz), sigma=sigma,
+                       pc=None, cvode=_CVODE, method=method))
+    grid_lfp.append(row_lfp)
 
-# %% Neuron stuff
+# %% Stimulate cell and run simulation
 syn_deep = l5p.synapses['basal_1_nmda']
 syn_superf = l5p.synapses['apical_2_nmda']
 
@@ -80,7 +72,7 @@ ncstim_superf.weight[0] = 0.02  # NetCon weight is a vector.
 h.finitialize()
 
 for tt in range(0, int(h.tstop), 10):
-    _CVODE.event(tt, simulation_time)
+    _CVODE.event(tt, lambda: print(f'Simulation time {h.t: .2f} ms ...'))
 
 h.fcurrent()
 print(f'Running simulation with {len(grid_lfp) * len(grid_lfp[0])} electrodes')
