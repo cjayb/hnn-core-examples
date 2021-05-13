@@ -39,13 +39,12 @@ h.tstop = params['tstop'] + params['burnin']
 h.dt = params['dt']
 h.celsius = 37
 
+_PC = h.ParallelContext(1)
+_PC.set_maxstep(10)
+
 _CVODE = h.CVode()
 _CVODE.active(0)
 _CVODE.use_fast_imem(1)
-
-# Why isn't this working??
-for tt in range(0, int(h.tstop), 50):
-    _CVODE.event(tt, simulation_time)
 
 # %%
 silence_hh = {'L5Pyr_soma_gkbar_hh2': 0.0,
@@ -79,9 +78,14 @@ ncstim_superf.delay = 1
 ncstim_superf.weight[0] = 0.02  # NetCon weight is a vector.
 
 h.finitialize()
+
+for tt in range(0, int(h.tstop), 10):
+    _CVODE.event(tt, simulation_time)
+
 h.fcurrent()
 print(f'Running simulation with {len(grid_lfp) * len(grid_lfp[0])} electrodes')
-h.run()
+# h.run()
+_PC.psolve(h.tstop)
 
 # %%
 times_lfp = np.array(grid_lfp[0][0].lfp_t.to_python())
