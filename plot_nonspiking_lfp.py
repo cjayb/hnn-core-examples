@@ -1,14 +1,13 @@
 # %%
 # %matplotlib widget
 import matplotlib.pyplot as plt
-from matplotlib.colors import SymLogNorm
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import numpy as np
 
 from neuron import h
 from hnn_core.network_builder import load_custom_mechanisms
 from hnn_core.lfp import _LFPElectrode
 from hnn_core.cells_default import pyramidal
+from hnn_core.lfp import _TransmembraneCurrentHandler
 
 
 def calc_monopole_multiplier(ele_pos, sec_mid, sigma=.3):
@@ -56,12 +55,16 @@ l5p = pyramidal(pos=(0, 0, 0), cell_name='L5Pyr',
 #         else:
 #             seg.pas.e = -71.
 
+_IMEM_HANDLER = _TransmembraneCurrentHandler(pc=_PC, cvode=_CVODE)
+
 
 def laminar_array(ymin, ymax, ystep, posx=10, posz=10):
     el_array = list()
     for posy in np.arange(ymin, ymax, ystep):
-        el_array.append(_LFPElectrode((posx, posy, posz), sigma=sigma, pc=None,
-                                      cvode=_CVODE, method=method))
+        el_array.append(_LFPElectrode((posx, posy, posz), sigma=sigma,
+                                      method=method,
+                                      imem_handler=_IMEM_HANDLER,
+                                      cvode=_CVODE))
     return el_array
 
 
@@ -134,7 +137,7 @@ ax[1].set_title('Synaptic currents (nA)')
 
 # laminar LFP
 efig, eax = plt.subplots(1, 1)
-times_lfp = np.array(laminar_lfp[0].lfp_t.to_python())
+times_lfp = np.array(_IMEM_HANDLER.imem_t.to_python())
 tind = times_lfp >= params['burnin']
 cmap = plt.get_cmap('inferno')
 depths = np.arange(-200, 2000, 100)
