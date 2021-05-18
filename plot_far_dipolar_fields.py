@@ -9,11 +9,10 @@ from neuron import h
 from hnn_core.network_builder import load_custom_mechanisms
 from hnn_core.lfp import _LFPElectrode
 from hnn_core.cells_default import pyramidal
-from hnn_core.lfp import _TransmembraneCurrentHandler
 
 
 sigma = 0.3  # S / m
-method = 'psa'
+method = 'psa'  # or 'lsa', should be identical far away
 
 # LFP Grid
 xmin, xmax = -1e4, 1e4
@@ -44,14 +43,12 @@ silence_hh = {'L5Pyr_soma_gkbar_hh2': 0.0,
               'L5Pyr_dend_gnabar_hh2': 0.0}
 l5p = pyramidal(pos=(0, 0, 0), cell_name='L5Pyr', override_params=silence_hh)
 
-_IMEM_HANDLER = _TransmembraneCurrentHandler(pc=_PC, cvode=_CVODE)
 grid_lfp = list()
 for posx in np.arange(xmin, xmax, step):
     row_lfp = list()
     for posy in np.arange(ymin, ymax, step):
         row_lfp.append(_LFPElectrode((posx, posy, posz), sigma=sigma,
-                                     method=method, imem_handler=_IMEM_HANDLER,
-                                     cvode=_CVODE))
+                                     method=method, cvode=_CVODE))
     grid_lfp.append(row_lfp)
 
 # %% Stimulate cell and run simulation
@@ -72,6 +69,8 @@ ncstim_superf = h.NetCon(stim_superf, syn_superf)
 ncstim_superf.delay = 1
 ncstim_superf.weight[0] = 0.02  # NetCon weight is a vector.
 
+t = h.Vector().record(h._ref_t)
+
 h.finitialize()
 
 for tt in range(0, int(h.tstop), 10):
@@ -83,7 +82,7 @@ print(f'Running simulation with {len(grid_lfp) * len(grid_lfp[0])} electrodes')
 _PC.psolve(h.tstop)
 
 # %% Plot
-times_lfp = np.array(_IMEM_HANDLER.imem_t.to_python())
+times_lfp = np.array(t.to_python())
 X_p = np.arange(xmin, xmax, step) / 1000
 Y_p = np.arange(ymin, ymax, step) / 1000
 idt_deep = np.argmin(np.abs(times_lfp - 260.))
