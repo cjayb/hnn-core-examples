@@ -7,7 +7,6 @@ from neuron import h
 from hnn_core.network_builder import load_custom_mechanisms
 from hnn_core.lfp import _LFPElectrode
 from hnn_core.cells_default import pyramidal
-from hnn_core.lfp import _TransmembraneCurrentHandler
 
 
 def calc_monopole_multiplier(ele_pos, sec_mid, sigma=.3):
@@ -55,16 +54,12 @@ l5p = pyramidal(pos=(0, 0, 0), cell_name='L5Pyr',
 #         else:
 #             seg.pas.e = -71.
 
-_IMEM_HANDLER = _TransmembraneCurrentHandler(pc=_PC, cvode=_CVODE)
-
 
 def laminar_array(ymin, ymax, ystep, posx=10, posz=10):
     el_array = list()
     for posy in np.arange(ymin, ymax, ystep):
         el_array.append(_LFPElectrode((posx, posy, posz), sigma=sigma,
-                                      method=method,
-                                      imem_handler=_IMEM_HANDLER,
-                                      cvode=_CVODE))
+                                      method=method, cvode=_CVODE))
     return el_array
 
 
@@ -137,15 +132,18 @@ ax[1].set_title('Synaptic currents (nA)')
 
 # laminar LFP
 efig, eax = plt.subplots(1, 1)
-times_lfp = np.array(_IMEM_HANDLER.imem_t.to_python())
+times_lfp = times
 tind = times_lfp >= params['burnin']
 cmap = plt.get_cmap('inferno')
 depths = np.arange(-200, 2000, 100)
-for ii, lfp in enumerate(laminar_lfp):
+for ii, elec in enumerate(laminar_lfp):
+    elec.calc_potential_callback()  # last point missing!
+
     eax.plot(times_lfp[tind] + ii * 2,
-             10 * ii + 10 * np.array(lfp.lfp_v)[tind],
+             10 * ii + 10 * np.array(elec.lfp_v)[tind],
              color=cmap(ii / len(laminar_lfp)))
     eax.text(200, 10 * ii, f'{int(depths[ii])}')
+    elec.reset()
 eax.set_ylim((-20, len(depths) * 10))
 eax.set_yticks(())
 eax.set_title('NMDA events at 250 ms (basal_1) and 400 ms (apical_2)')
@@ -163,7 +161,7 @@ soma_idx = 3
 fig, ax = plt.subplots(len(sec_order), 1, figsize=(8, 12))
 for ii_sec, key in enumerate(sec_order):
     for ii_seg, _h_seg_im in enumerate(imem_vecs[key]):
-        seg_im = np.array(_h_seg_im.to_python())[:-1]
+        seg_im = np.array(_h_seg_im.to_python())
         ax[ii_sec].plot(times_lfp[tind] + ii_seg * 10,
                         ii_seg + 10 * seg_im[tind])
     # ax[ii_sec].text(150, im, key)
@@ -192,7 +190,7 @@ for ele_depth in depths:
 efig, eax = plt.subplots(1, 1)
 for ii, lfp in enumerate(laminar_lfp_man):
     eax.plot(times_lfp[tind] + ii * 2,
-             10 * ii + 10 * np.array(lfp)[:-1][tind],
+             10 * ii + 10 * np.array(lfp)[tind],
              color=cmap(ii / len(laminar_lfp_man)))
     eax.text(200, 10 * ii, f'{int(depths[ii])}')
 eax.set_ylim((-20, len(depths) * 10))
@@ -219,9 +217,9 @@ for key, segs in imem_vecs.items():
             this_seg_net_current -= i_superf
         leak_currents += np.array(this_seg_net_current)
 
-ax.plot(times_lfp[tind], -syn_current[:-1][tind],
+ax.plot(times_lfp[tind], -syn_current[tind],
         ls='--', lw=4, label='$-I_{syn}$')
-ax.plot(times_lfp[tind], leak_currents[:-1][tind],
+ax.plot(times_lfp[tind], leak_currents[tind],
         lw=2, label='$I_{leak}$')
 ax.set_xlabel('Time (ms)')
 ax.set_ylabel('Net current (nA)')
